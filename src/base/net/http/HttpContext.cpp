@@ -24,27 +24,30 @@
  */
 
 
+#include "base/net/http/HttpContext.h"
+#include "3rdparty/http-parser/http_parser.h"
+#include "base/kernel/interfaces/IHttpListener.h"
+#include "base/tools/Chrono.h"
+
+
 #include <algorithm>
 #include <uv.h>
 
 
-#include "3rdparty/http-parser/http_parser.h"
-#include "base/kernel/interfaces/IHttpListener.h"
-#include "base/net/http/HttpContext.h"
-
-
 namespace xmrig {
+
 
 static http_parser_settings http_settings;
 static std::map<uint64_t, HttpContext *> storage;
 static uint64_t SEQUENCE = 0;
+
 
 } // namespace xmrig
 
 
 xmrig::HttpContext::HttpContext(int parser_type, IHttpListener *listener) :
     HttpData(SEQUENCE++),
-    m_wasHeaderValue(false),
+    m_timestamp(Chrono::steadyMSecs()),
     m_listener(listener)
 {
     storage[id()] = this;
@@ -96,6 +99,12 @@ std::string xmrig::HttpContext::ip() const
 }
 
 
+uint64_t xmrig::HttpContext::elapsed() const
+{
+    return Chrono::steadyMSecs() - m_timestamp;
+}
+
+
 void xmrig::HttpContext::close(int status)
 {
     if (status < 0 && m_listener) {
@@ -136,7 +145,7 @@ void xmrig::HttpContext::closeAll()
 
 int xmrig::HttpContext::onHeaderField(http_parser *parser, const char *at, size_t length)
 {
-    HttpContext *ctx = static_cast<HttpContext*>(parser->data);
+    auto ctx = static_cast<HttpContext*>(parser->data);
 
     if (ctx->m_wasHeaderValue) {
         if (!ctx->m_lastHeaderField.empty()) {
@@ -155,7 +164,7 @@ int xmrig::HttpContext::onHeaderField(http_parser *parser, const char *at, size_
 
 int xmrig::HttpContext::onHeaderValue(http_parser *parser, const char *at, size_t length)
 {
-    HttpContext *ctx = static_cast<HttpContext*>(parser->data);
+    auto ctx = static_cast<HttpContext*>(parser->data);
 
     if (!ctx->m_wasHeaderValue) {
         ctx->m_lastHeaderValue = std::string(at, length);
@@ -185,7 +194,7 @@ void xmrig::HttpContext::attach(http_parser_settings *settings)
     settings->on_header_value = onHeaderValue;
 
     settings->on_headers_complete = [](http_parser* parser) -> int {
-        HttpContext *ctx = static_cast<HttpContext*>(parser->data);
+        auto ctx = static_cast<HttpContext*>(parser->data);
         ctx->status = parser->status_code;
 
         if (parser->type == HTTP_REQUEST) {
@@ -208,7 +217,7 @@ void xmrig::HttpContext::attach(http_parser_settings *settings)
 
     settings->on_message_complete = [](http_parser *parser) -> int
     {
-        HttpContext *ctx = static_cast<HttpContext*>(parser->data);
+        auto ctx = static_cast<HttpContext*>(parser->data);
         ctx->m_listener->onHttpData(*ctx);
         ctx->m_listener = nullptr;
 

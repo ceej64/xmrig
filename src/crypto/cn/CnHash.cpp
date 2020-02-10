@@ -23,7 +23,7 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
+#include <cstdio>
 
 
 #include "backend/cpu/Cpu.h"
@@ -66,12 +66,6 @@
     m_map[algo][AV_DOUBLE][Assembly::BULLDOZER] = cryptonight_double_hash_asm<algo, Assembly::BULLDOZER>;
 
 
-extern "C" void cnv2_mainloop_ivybridge_asm(cryptonight_ctx **ctx);
-extern "C" void cnv2_mainloop_ryzen_asm(cryptonight_ctx **ctx);
-extern "C" void cnv2_mainloop_bulldozer_asm(cryptonight_ctx **ctx);
-extern "C" void cnv2_double_mainloop_sandybridge_asm(cryptonight_ctx **ctx);
-
-
 namespace xmrig {
 
 
@@ -84,6 +78,11 @@ cn_mainloop_fun        cn_trtl_mainloop_ivybridge_asm             = nullptr;
 cn_mainloop_fun        cn_trtl_mainloop_ryzen_asm                 = nullptr;
 cn_mainloop_fun        cn_trtl_mainloop_bulldozer_asm             = nullptr;
 cn_mainloop_fun        cn_trtl_double_mainloop_sandybridge_asm    = nullptr;
+
+cn_mainloop_fun        cn_tlo_mainloop_ivybridge_asm              = nullptr;
+cn_mainloop_fun        cn_tlo_mainloop_ryzen_asm                  = nullptr;
+cn_mainloop_fun        cn_tlo_mainloop_bulldozer_asm              = nullptr;
+cn_mainloop_fun        cn_tlo_double_mainloop_sandybridge_asm     = nullptr;
 
 cn_mainloop_fun        cn_zls_mainloop_ivybridge_asm              = nullptr;
 cn_mainloop_fun        cn_zls_mainloop_ryzen_asm                  = nullptr;
@@ -99,7 +98,7 @@ cn_mainloop_fun        cn_double_double_mainloop_sandybridge_asm  = nullptr;
 template<typename T, typename U>
 static void patchCode(T dst, U src, const uint32_t iterations, const uint32_t mask = CnAlgo<Algorithm::CN_HALF>().mask())
 {
-    const uint8_t* p = reinterpret_cast<const uint8_t*>(src);
+    auto p = reinterpret_cast<const uint8_t*>(src);
 
     // Workaround for Visual Studio placing trampoline in debug builds.
 #   if defined(_MSC_VER)
@@ -117,7 +116,7 @@ static void patchCode(T dst, U src, const uint32_t iterations, const uint32_t ma
 
     memcpy((void*) dst, (const void*) src, size);
 
-    uint8_t* patched_data = reinterpret_cast<uint8_t*>(dst);
+    auto patched_data = reinterpret_cast<uint8_t*>(dst);
     for (size_t i = 0; i + sizeof(uint32_t) <= size; ++i) {
         switch (*(uint32_t*)(patched_data + i)) {
         case CnAlgo<Algorithm::CN_2>().iterations():
@@ -134,8 +133,8 @@ static void patchCode(T dst, U src, const uint32_t iterations, const uint32_t ma
 
 static void patchAsmVariants()
 {
-    const int allocation_size = 65536;
-    uint8_t *base = static_cast<uint8_t *>(VirtualMemory::allocateExecutableMemory(allocation_size));
+    const int allocation_size = 81920;
+    auto base = static_cast<uint8_t *>(VirtualMemory::allocateExecutableMemory(allocation_size));
 
     cn_half_mainloop_ivybridge_asm              = reinterpret_cast<cn_mainloop_fun>         (base + 0x0000);
     cn_half_mainloop_ryzen_asm                  = reinterpret_cast<cn_mainloop_fun>         (base + 0x1000);
@@ -159,6 +158,13 @@ static void patchAsmVariants()
     cn_double_mainloop_bulldozer_asm            = reinterpret_cast<cn_mainloop_fun>         (base + 0xE000);
     cn_double_double_mainloop_sandybridge_asm   = reinterpret_cast<cn_mainloop_fun>         (base + 0xF000);
 
+#   ifdef XMRIG_ALGO_CN_PICO
+    cn_tlo_mainloop_ivybridge_asm               = reinterpret_cast<cn_mainloop_fun>         (base + 0x10000);
+    cn_tlo_mainloop_ryzen_asm                   = reinterpret_cast<cn_mainloop_fun>         (base + 0x11000);
+    cn_tlo_mainloop_bulldozer_asm               = reinterpret_cast<cn_mainloop_fun>         (base + 0x12000);
+    cn_tlo_double_mainloop_sandybridge_asm      = reinterpret_cast<cn_mainloop_fun>         (base + 0x13000);
+#   endif
+
     {
         constexpr uint32_t ITER = CnAlgo<Algorithm::CN_HALF>().iterations();
 
@@ -177,6 +183,16 @@ static void patchAsmVariants()
         patchCode(cn_trtl_mainloop_ryzen_asm,                cnv2_mainloop_ryzen_asm,               ITER,   MASK);
         patchCode(cn_trtl_mainloop_bulldozer_asm,            cnv2_mainloop_bulldozer_asm,           ITER,   MASK);
         patchCode(cn_trtl_double_mainloop_sandybridge_asm,   cnv2_double_mainloop_sandybridge_asm,  ITER,   MASK);
+    }
+
+    {
+        constexpr uint32_t ITER = CnAlgo<Algorithm::CN_PICO_TLO>().iterations();
+        constexpr uint32_t MASK = CnAlgo<Algorithm::CN_PICO_TLO>().mask();
+
+        patchCode(cn_tlo_mainloop_ivybridge_asm,             cnv2_mainloop_ivybridge_asm,           ITER,   MASK);
+        patchCode(cn_tlo_mainloop_ryzen_asm,                 cnv2_mainloop_ryzen_asm,               ITER,   MASK);
+        patchCode(cn_tlo_mainloop_bulldozer_asm,             cnv2_mainloop_bulldozer_asm,           ITER,   MASK);
+        patchCode(cn_tlo_double_mainloop_sandybridge_asm,    cnv2_double_mainloop_sandybridge_asm,  ITER,   MASK);
     }
 #   endif
 
@@ -216,7 +232,6 @@ xmrig::CnHash::CnHash()
     ADD_FN(Algorithm::CN_1);
     ADD_FN(Algorithm::CN_2);
     ADD_FN(Algorithm::CN_R);
-    ADD_FN(Algorithm::CN_WOW);
     ADD_FN(Algorithm::CN_FAST);
     ADD_FN(Algorithm::CN_HALF);
     ADD_FN(Algorithm::CN_XAO);
@@ -228,7 +243,6 @@ xmrig::CnHash::CnHash()
     ADD_FN_ASM(Algorithm::CN_2);
     ADD_FN_ASM(Algorithm::CN_HALF);
     ADD_FN_ASM(Algorithm::CN_R);
-    ADD_FN_ASM(Algorithm::CN_WOW);
     ADD_FN_ASM(Algorithm::CN_RWZ);
     ADD_FN_ASM(Algorithm::CN_ZLS);
     ADD_FN_ASM(Algorithm::CN_DOUBLE);
@@ -252,6 +266,8 @@ xmrig::CnHash::CnHash()
 #   ifdef XMRIG_ALGO_CN_PICO
     ADD_FN(Algorithm::CN_PICO_0);
     ADD_FN_ASM(Algorithm::CN_PICO_0);
+    ADD_FN(Algorithm::CN_PICO_TLO);
+    ADD_FN_ASM(Algorithm::CN_PICO_TLO);
 #   endif
 
 #   ifdef XMRIG_ALGO_ARGON2

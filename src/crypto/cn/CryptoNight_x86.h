@@ -514,7 +514,6 @@ static inline __m128i int_sqrt_v2(const uint64_t n0)
 }
 
 
-void wow_soft_aes_compile_code(const V4_Instruction *code, int code_size, void *machine_code, xmrig::Assembly ASM);
 void v4_soft_aes_compile_code(const V4_Instruction *code, int code_size, void *machine_code, xmrig::Assembly ASM);
 
 
@@ -576,10 +575,7 @@ inline void cryptonight_single_hash(const uint8_t *__restrict__ input, size_t si
             V4_Instruction code[256];
             const int code_size = v4_random_math_init<ALGO>(code, height);
 
-            if (ALGO == Algorithm::CN_WOW) {
-                wow_soft_aes_compile_code(code, code_size, reinterpret_cast<void*>(ctx[0]->generated_code), Assembly::NONE);
-            }
-            else if (ALGO == Algorithm::CN_R) {
+            if (ALGO == Algorithm::CN_R) {
                 v4_soft_aes_compile_code(code, code_size, reinterpret_cast<void*>(ctx[0]->generated_code), Assembly::NONE);
             }
 
@@ -798,6 +794,11 @@ extern cn_mainloop_fun cn_trtl_mainloop_ryzen_asm;
 extern cn_mainloop_fun cn_trtl_mainloop_bulldozer_asm;
 extern cn_mainloop_fun cn_trtl_double_mainloop_sandybridge_asm;
 
+extern cn_mainloop_fun cn_tlo_mainloop_ivybridge_asm;
+extern cn_mainloop_fun cn_tlo_mainloop_ryzen_asm;
+extern cn_mainloop_fun cn_tlo_mainloop_bulldozer_asm;
+extern cn_mainloop_fun cn_tlo_double_mainloop_sandybridge_asm;
+
 extern cn_mainloop_fun cn_zls_mainloop_ivybridge_asm;
 extern cn_mainloop_fun cn_zls_mainloop_ryzen_asm;
 extern cn_mainloop_fun cn_zls_mainloop_bulldozer_asm;
@@ -812,9 +813,7 @@ extern cn_mainloop_fun cn_double_double_mainloop_sandybridge_asm;
 } // namespace xmrig
 
 
-void wow_compile_code(const V4_Instruction* code, int code_size, void* machine_code, xmrig::Assembly ASM);
 void v4_compile_code(const V4_Instruction* code, int code_size, void* machine_code, xmrig::Assembly ASM);
-void wow_compile_code_double(const V4_Instruction* code, int code_size, void* machine_code, xmrig::Assembly ASM);
 void v4_compile_code_double(const V4_Instruction* code, int code_size, void* machine_code, xmrig::Assembly ASM);
 
 
@@ -829,20 +828,6 @@ template<xmrig::Algorithm::Id ALGO>
 void cn_r_compile_code_double(const V4_Instruction* code, int code_size, void* machine_code, xmrig::Assembly ASM)
 {
     v4_compile_code_double(code, code_size, machine_code, ASM);
-}
-
-
-template<>
-void cn_r_compile_code<xmrig::Algorithm::CN_WOW>(const V4_Instruction* code, int code_size, void* machine_code, xmrig::Assembly ASM)
-{
-    wow_compile_code(code, code_size, machine_code, ASM);
-}
-
-
-template<>
-void cn_r_compile_code_double<xmrig::Algorithm::CN_WOW>(const V4_Instruction* code, int code_size, void* machine_code, xmrig::Assembly ASM)
-{
-    wow_compile_code_double(code, code_size, machine_code, ASM);
 }
 
 
@@ -897,6 +882,17 @@ inline void cryptonight_single_hash_asm(const uint8_t *__restrict__ input, size_
         }
         else {
             cn_trtl_mainloop_bulldozer_asm(ctx);
+        }
+    }
+    else if (ALGO == Algorithm::CN_PICO_TLO) {
+        if (ASM == Assembly::INTEL) {
+            cn_tlo_mainloop_ivybridge_asm(ctx);
+        }
+        else if (ASM == Assembly::RYZEN) {
+            cn_tlo_mainloop_ryzen_asm(ctx);
+        }
+        else {
+            cn_tlo_mainloop_bulldozer_asm(ctx);
         }
     }
 #   endif
@@ -963,6 +959,9 @@ inline void cryptonight_double_hash_asm(const uint8_t *__restrict__ input, size_
 #   ifdef XMRIG_ALGO_CN_PICO
     else if (ALGO == Algorithm::CN_PICO_0) {
         cn_trtl_double_mainloop_sandybridge_asm(ctx);
+    }
+    else if (ALGO == Algorithm::CN_PICO_TLO) {
+        cn_tlo_double_mainloop_sandybridge_asm(ctx);
     }
 #   endif
     else if (ALGO == Algorithm::CN_RWZ) {

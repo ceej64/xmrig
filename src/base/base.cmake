@@ -12,6 +12,7 @@ set(HEADERS_BASE
     src/base/kernel/config/BaseConfig.h
     src/base/kernel/config/BaseTransform.h
     src/base/kernel/Entry.h
+    src/base/kernel/Env.h
     src/base/kernel/interfaces/IBaseListener.h
     src/base/kernel/interfaces/IClient.h
     src/base/kernel/interfaces/IClientListener.h
@@ -41,6 +42,7 @@ set(HEADERS_BASE
     src/base/net/stratum/strategies/FailoverStrategy.h
     src/base/net/stratum/strategies/SinglePoolStrategy.h
     src/base/net/stratum/SubmitResult.h
+    src/base/net/stratum/Url.h
     src/base/net/tools/RecvBuf.h
     src/base/net/tools/Storage.h
     src/base/tools/Arguments.h
@@ -65,6 +67,7 @@ set(SOURCES_BASE
     src/base/kernel/config/BaseConfig.cpp
     src/base/kernel/config/BaseTransform.cpp
     src/base/kernel/Entry.cpp
+    src/base/kernel/Env.cpp
     src/base/kernel/Platform.cpp
     src/base/kernel/Process.cpp
     src/base/kernel/Signals.cpp
@@ -78,6 +81,7 @@ set(SOURCES_BASE
     src/base/net/stratum/Pools.cpp
     src/base/net/stratum/strategies/FailoverStrategy.cpp
     src/base/net/stratum/strategies/SinglePoolStrategy.cpp
+    src/base/net/stratum/Url.cpp
     src/base/tools/Arguments.cpp
     src/base/tools/Buffer.cpp
     src/base/tools/String.cpp
@@ -98,7 +102,14 @@ elseif (APPLE)
 else()
     set(SOURCES_OS
         src/base/io/json/Json_unix.cpp
-        src/base/kernel//Platform_unix.cpp
+        src/base/kernel/Platform_unix.cpp
+        )
+endif()
+
+
+if (WITH_HWLOC)
+    list(APPEND SOURCES_OS
+        src/base/kernel/Platform_hwloc.cpp
         )
 endif()
 
@@ -130,6 +141,7 @@ if (WITH_HTTP)
         src/base/net/http/HttpResponse.h
         src/base/net/http/HttpServer.h
         src/base/net/stratum/DaemonClient.h
+        src/base/net/stratum/SelfSelectClient.h
         src/base/net/tools/TcpServer.h
         )
 
@@ -145,6 +157,7 @@ if (WITH_HTTP)
         src/base/net/http/HttpResponse.cpp
         src/base/net/http/HttpServer.cpp
         src/base/net/stratum/DaemonClient.cpp
+        src/base/net/stratum/SelfSelectClient.cpp
         src/base/net/tools/TcpServer.cpp
         )
 
@@ -155,4 +168,16 @@ else()
     set(SOURCES_BASE_HTTP "")
     remove_definitions(/DXMRIG_FEATURE_HTTP)
     remove_definitions(/DXMRIG_FEATURE_API)
+endif()
+
+
+if (WITH_ENV_VARS AND CMAKE_CXX_COMPILER_ID MATCHES GNU AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
+    set(WITH_ENV_VARS OFF)
+endif()
+
+
+if (WITH_ENV_VARS)
+    add_definitions(/DXMRIG_FEATURE_ENV)
+else()
+    remove_definitions(/DXMRIG_FEATURE_ENV)
 endif()

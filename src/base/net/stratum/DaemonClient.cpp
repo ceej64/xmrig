@@ -117,9 +117,9 @@ int64_t xmrig::DaemonClient::submit(const JobResult &result)
     JsonRequest::create(doc, m_sequence, "submitblock", params);
 
 #   ifdef XMRIG_PROXY_PROJECT
-    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), result.id);
+    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), result.id, 0);
 #   else
-    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff());
+    m_results[m_sequence] = SubmitResult(m_sequence, result.diff, result.actualDiff(), 0, result.backend);
 #   endif
 
     send(HTTP_POST, kJsonRPC, doc);
@@ -284,8 +284,8 @@ int64_t xmrig::DaemonClient::getBlockTemplate()
     auto &allocator = doc.GetAllocator();
 
     Value params(kObjectType);
-    params.AddMember("wallet_address", m_pool.user().toJSON(), allocator);
-    params.AddMember("reserve_size",   8,                      allocator);
+    params.AddMember("wallet_address", m_user.toJSON(), allocator);
+    params.AddMember("reserve_size",   8,               allocator);
 
     JsonRequest::create(doc, m_sequence, "getblocktemplate", params);
 

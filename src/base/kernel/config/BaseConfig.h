@@ -5,8 +5,8 @@
  * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -31,9 +31,6 @@
 #include "base/net/stratum/Pools.h"
 
 
-struct option;
-
-
 namespace xmrig {
 
 
@@ -43,7 +40,22 @@ class IJsonReader;
 class BaseConfig : public IConfig
 {
 public:
-    BaseConfig();
+    static const char *kApi;
+    static const char *kApiId;
+    static const char *kApiWorkerId;
+    static const char *kAutosave;
+    static const char *kBackground;
+    static const char *kColors;
+    static const char *kDryRun;
+    static const char *kHttp;
+    static const char *kLogFile;
+    static const char *kPrintTime;
+    static const char *kSyslog;
+    static const char *kUserAgent;
+    static const char *kVerbose;
+    static const char *kWatch;
+
+    BaseConfig() = default;
 
     inline bool isAutoSave() const                 { return m_autoSave; }
     inline bool isBackground() const               { return m_background; }
@@ -56,7 +68,6 @@ public:
     inline const String &apiId() const             { return m_apiId; }
     inline const String &apiWorkerId() const       { return m_apiWorkerId; }
     inline uint32_t printTime() const              { return m_printTime; }
-    inline uint32_t version() const                { return m_version; }
 
     inline bool isWatch() const override                   { return m_watch && !m_fileName.isNull(); }
     inline const String &fileName() const override         { return m_fileName; }
@@ -82,10 +93,11 @@ protected:
     String m_logFile;
     String m_userAgent;
     uint32_t m_printTime = 60;
-    uint32_t m_version   = 0;
 
 private:
     inline void setPrintTime(uint32_t printTime) { if (printTime <= 3600) { m_printTime = printTime; } }
+
+    void setVerbose(const rapidjson::Value &value);
 };
 
 

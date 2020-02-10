@@ -50,6 +50,7 @@ R"===(
     "colors": true,
     "randomx": {
         "init": -1,
+        "mode": "auto",
         "numa": true
     },
     "cpu": {
@@ -57,8 +58,26 @@ R"===(
         "huge-pages": true,
         "hw-aes": null,
         "priority": null,
+        "memory-pool": false,
+        "yield": true,
+        "max-threads-hint": 100,
         "asm": true,
         "argon2-impl": null,
+        "cn/0": false,
+        "cn-lite/0": false
+    },
+    "opencl": {
+        "enabled": false,
+        "cache": true,
+        "loader": null,
+        "platform": "AMD",
+        "cn/0": false,
+        "cn-lite/0": false
+    },
+    "cuda": {
+        "enabled": false,
+        "loader": null,
+        "nvml": true,
         "cn/0": false,
         "cn-lite/0": false
     },
@@ -78,10 +97,12 @@ R"===(
             "enabled": true,
             "tls": false,
             "tls-fingerprint": null,
-            "daemon": false
+            "daemon": false,
+            "self-select": null
         }
     ],
     "print-time": 60,
+    "health-print-time": 60,
     "retries": 5,
     "retry-pause": 5,
     "syslog": false,

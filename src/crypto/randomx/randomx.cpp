@@ -26,6 +26,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include "crypto/randomx/common.hpp"
 #include "crypto/randomx/randomx.h"
 #include "crypto/randomx/dataset.hpp"
 #include "crypto/randomx/vm_interpreted.hpp"
@@ -33,7 +34,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "crypto/randomx/vm_compiled.hpp"
 #include "crypto/randomx/vm_compiled_light.hpp"
 #include "crypto/randomx/blake2/blake2.h"
+
+#if defined(_M_X64) || defined(__x86_64__)
 #include "crypto/randomx/jit_compiler_x86_static.hpp"
+#elif defined(XMRIG_ARMv8)
+#include "crypto/randomx/jit_compiler_a64_static.hpp"
+#endif
+
+#include "backend/cpu/Cpu.h"
+
 #include <cassert>
 
 RandomX_ConfigurationWownero::RandomX_ConfigurationWownero()
@@ -73,6 +82,21 @@ RandomX_ConfigurationLoki::RandomX_ConfigurationLoki()
 
 	RANDOMX_FREQ_IADD_RS = 25;
 	RANDOMX_FREQ_CBRANCH = 16;
+}
+
+RandomX_ConfigurationArqma::RandomX_ConfigurationArqma()
+{
+	ArgonIterations = 1;
+	ArgonSalt = "RandomARQ\x01";
+	ProgramIterations = 1024;
+	ProgramCount = 4;
+	ScratchpadL2_Size = 131072;
+	ScratchpadL3_Size = 262144;
+}
+
+RandomX_ConfigurationSafex::RandomX_ConfigurationSafex()
+{
+	ArgonSalt = "RandomSFX\x01";
 }
 
 RandomX_ConfigurationBase::RandomX_ConfigurationBase()
@@ -140,8 +164,15 @@ RandomX_ConfigurationBase::RandomX_ConfigurationBase()
 	}
 	{
 		const uint8_t* a = (const uint8_t*)&randomx_program_read_dataset;
-		const uint8_t* b = (const uint8_t*)&randomx_program_read_dataset_sshash_init;
+		const uint8_t* b = (const uint8_t*)&randomx_program_read_dataset_ryzen;
 		memcpy(codeReadDatasetTweaked, a, b - a);
+		codeReadDatasetTweakedSize = b - a;
+	}
+	{
+		const uint8_t* a = (const uint8_t*)&randomx_program_read_dataset_ryzen;
+		const uint8_t* b = (const uint8_t*)&randomx_program_read_dataset_sshash_init;
+		memcpy(codeReadDatasetRyzenTweaked, a, b - a);
+		codeReadDatasetRyzenTweakedSize = b - a;
 	}
 	{
 		const uint8_t* a = (const uint8_t*)&randomx_program_read_dataset_sshash_init;
@@ -156,19 +187,10 @@ RandomX_ConfigurationBase::RandomX_ConfigurationBase()
 #endif
 }
 
+static uint32_t Log2(size_t value) { return (value > 1) ? (Log2(value / 2) + 1) : 0; }
+
 void RandomX_ConfigurationBase::Apply()
 {
-#if defined(_M_X64) || defined(__x86_64__)
-	*(uint32_t*)(codeShhPrefetchTweaked + 3) = ArgonMemory * 16 - 1;
-	const uint32_t DatasetBaseMask = DatasetBaseSize - RANDOMX_DATASET_ITEM_SIZE;
-	*(uint32_t*)(codeReadDatasetTweaked + 7) = DatasetBaseMask;
-	*(uint32_t*)(codeReadDatasetTweaked + 23) = DatasetBaseMask;
-	*(uint32_t*)(codeReadDatasetLightSshInitTweaked + 59) = DatasetBaseMask;
-#endif
-
-	CacheLineAlignMask_Calculated = (DatasetBaseSize - 1) & ~(RANDOMX_DATASET_ITEM_SIZE - 1);
-	DatasetExtraItems_Calculated = DatasetExtraSize / RANDOMX_DATASET_ITEM_SIZE;
-
 	ScratchpadL1Mask_Calculated = (ScratchpadL1_Size / sizeof(uint64_t) - 1) * 8;
 	ScratchpadL1Mask16_Calculated = (ScratchpadL1_Size / sizeof(uint64_t) / 2 - 1) * 16;
 	ScratchpadL2Mask_Calculated = (ScratchpadL2_Size / sizeof(uint64_t) - 1) * 8;
@@ -176,25 +198,48 @@ void RandomX_ConfigurationBase::Apply()
 	ScratchpadL3Mask_Calculated = (((ScratchpadL3_Size / sizeof(uint64_t)) - 1) * 8);
 	ScratchpadL3Mask64_Calculated = ((ScratchpadL3_Size / sizeof(uint64_t)) / 8 - 1) * 64;
 
-#if defined(_M_X64) || defined(__x86_64__)
-	*(uint32_t*)(codePrefetchScratchpadTweaked + 4) = ScratchpadL3Mask64_Calculated;
-	*(uint32_t*)(codePrefetchScratchpadTweaked + 18) = ScratchpadL3Mask64_Calculated;
-#endif
+	CacheLineAlignMask_Calculated = (DatasetBaseSize - 1) & ~(RANDOMX_DATASET_ITEM_SIZE - 1);
+	DatasetExtraItems_Calculated = DatasetExtraSize / RANDOMX_DATASET_ITEM_SIZE;
 
 	ConditionMask_Calculated = (1 << JumpBits) - 1;
 
-	constexpr int CEIL_NULL = 0;
-	int k = 0;
-
 #if defined(_M_X64) || defined(__x86_64__)
+	*(uint32_t*)(codeShhPrefetchTweaked + 3) = ArgonMemory * 16 - 1;
+	// Not needed right now because all variants use default dataset base size
+	//const uint32_t DatasetBaseMask = DatasetBaseSize - RANDOMX_DATASET_ITEM_SIZE;
+	//*(uint32_t*)(codeReadDatasetTweaked + 9) = DatasetBaseMask;
+	//*(uint32_t*)(codeReadDatasetTweaked + 24) = DatasetBaseMask;
+	//*(uint32_t*)(codeReadDatasetLightSshInitTweaked + 59) = DatasetBaseMask;
+
+	*(uint32_t*)(codePrefetchScratchpadTweaked + 4) = ScratchpadL3Mask64_Calculated;
+	*(uint32_t*)(codePrefetchScratchpadTweaked + 18) = ScratchpadL3Mask64_Calculated;
+
 #define JIT_HANDLE(x, prev) randomx::JitCompilerX86::engine[k] = &randomx::JitCompilerX86::h_##x
+
+#elif defined(XMRIG_ARMv8)
+
+	Log2_ScratchpadL1 = Log2(ScratchpadL1_Size);
+	Log2_ScratchpadL2 = Log2(ScratchpadL2_Size);
+	Log2_ScratchpadL3 = Log2(ScratchpadL3_Size);
+	Log2_DatasetBaseSize = Log2(DatasetBaseSize);
+	Log2_CacheSize = Log2((ArgonMemory * randomx::ArgonBlockSize) / randomx::CacheLineSize);
+
+#define JIT_HANDLE(x, prev) randomx::JitCompilerA64::engine[k] = &randomx::JitCompilerA64::h_##x
+
 #else
 #define JIT_HANDLE(x, prev)
 #endif
 
+	constexpr int CEIL_NULL = 0;
+	int k = 0;
+
 #define INST_HANDLE(x, prev) \
 	CEIL_##x = CEIL_##prev + RANDOMX_FREQ_##x; \
 	for (; k < CEIL_##x; ++k) { JIT_HANDLE(x, prev); }
+
+#define INST_HANDLE2(x, func_name, prev) \
+	CEIL_##x = CEIL_##prev + RANDOMX_FREQ_##x; \
+	for (; k < CEIL_##x; ++k) { JIT_HANDLE(func_name, prev); }
 
 	INST_HANDLE(IADD_RS, NULL);
 	INST_HANDLE(IADD_M, IADD_RS);
@@ -202,8 +247,19 @@ void RandomX_ConfigurationBase::Apply()
 	INST_HANDLE(ISUB_M, ISUB_R);
 	INST_HANDLE(IMUL_R, ISUB_M);
 	INST_HANDLE(IMUL_M, IMUL_R);
-	INST_HANDLE(IMULH_R, IMUL_M);
-	INST_HANDLE(IMULH_M, IMULH_R);
+
+#if defined(_M_X64) || defined(__x86_64__)
+	if (xmrig::Cpu::info()->hasBMI2()) {
+		INST_HANDLE2(IMULH_R, IMULH_R_BMI2, IMUL_M);
+		INST_HANDLE2(IMULH_M, IMULH_M_BMI2, IMULH_R);
+	}
+	else
+#endif
+	{
+		INST_HANDLE(IMULH_R, IMUL_M);
+		INST_HANDLE(IMULH_M, IMULH_R);
+	}
+
 	INST_HANDLE(ISMULH_R, IMULH_M);
 	INST_HANDLE(ISMULH_M, ISMULH_R);
 	INST_HANDLE(IMUL_RCP, ISMULH_M);
@@ -232,47 +288,35 @@ void RandomX_ConfigurationBase::Apply()
 RandomX_ConfigurationMonero RandomX_MoneroConfig;
 RandomX_ConfigurationWownero RandomX_WowneroConfig;
 RandomX_ConfigurationLoki RandomX_LokiConfig;
+RandomX_ConfigurationArqma RandomX_ArqmaConfig;
+RandomX_ConfigurationSafex RandomX_SafexConfig;
 
 RandomX_ConfigurationBase RandomX_CurrentConfig;
 
 extern "C" {
 
-	randomx_cache *randomx_alloc_cache(randomx_flags flags) {
+	randomx_cache *randomx_create_cache(randomx_flags flags, uint8_t *memory) {
+		if (!memory) {
+			return nullptr;
+		}
+
 		randomx_cache *cache = nullptr;
 
 		try {
 			cache = new randomx_cache();
-			switch (flags & (RANDOMX_FLAG_JIT | RANDOMX_FLAG_LARGE_PAGES)) {
+			switch (flags & RANDOMX_FLAG_JIT) {
 				case RANDOMX_FLAG_DEFAULT:
-					cache->dealloc = &randomx::deallocCache<randomx::DefaultAllocator>;
-					cache->jit = nullptr;
-					cache->initialize = &randomx::initCache;
-					cache->datasetInit = &randomx::initDataset;
-					cache->memory = (uint8_t*)randomx::DefaultAllocator::allocMemory(RANDOMX_CACHE_MAX_SIZE);
+					cache->jit          = nullptr;
+					cache->initialize   = &randomx::initCache;
+					cache->datasetInit  = &randomx::initDataset;
+					cache->memory       = memory;
 					break;
 
 				case RANDOMX_FLAG_JIT:
-					cache->dealloc = &randomx::deallocCache<randomx::DefaultAllocator>;
-					cache->jit = new randomx::JitCompiler();
-					cache->initialize = &randomx::initCacheCompile;
-					cache->datasetInit = cache->jit->getDatasetInitFunc();
-					cache->memory = (uint8_t*)randomx::DefaultAllocator::allocMemory(RANDOMX_CACHE_MAX_SIZE);
-					break;
-
-				case RANDOMX_FLAG_LARGE_PAGES:
-					cache->dealloc = &randomx::deallocCache<randomx::LargePageAllocator>;
-					cache->jit = nullptr;
-					cache->initialize = &randomx::initCache;
-					cache->datasetInit = &randomx::initDataset;
-					cache->memory = (uint8_t*)randomx::LargePageAllocator::allocMemory(RANDOMX_CACHE_MAX_SIZE);
-					break;
-
-				case RANDOMX_FLAG_JIT | RANDOMX_FLAG_LARGE_PAGES:
-					cache->dealloc = &randomx::deallocCache<randomx::LargePageAllocator>;
-					cache->jit = new randomx::JitCompiler();
-					cache->initialize = &randomx::initCacheCompile;
-					cache->datasetInit = cache->jit->getDatasetInitFunc();
-					cache->memory = (uint8_t*)randomx::LargePageAllocator::allocMemory(RANDOMX_CACHE_MAX_SIZE);
+					cache->jit          = new randomx::JitCompiler();
+					cache->initialize   = &randomx::initCacheCompile;
+					cache->datasetInit  = cache->jit->getDatasetInitFunc();
+					cache->memory       = memory;
 					break;
 
 				default:
@@ -296,31 +340,16 @@ extern "C" {
 	}
 
 	void randomx_release_cache(randomx_cache* cache) {
-		assert(cache != nullptr);
-		cache->dealloc(cache);
 		delete cache;
 	}
 
-	randomx_dataset *randomx_alloc_dataset(randomx_flags flags) {
-		randomx_dataset *dataset = nullptr;
+	randomx_dataset *randomx_create_dataset(uint8_t *memory) {
+		if (!memory) {
+			return nullptr;
+		}
 
-		try {
-			dataset = new randomx_dataset();
-			if (flags & RANDOMX_FLAG_LARGE_PAGES) {
-				dataset->dealloc = &randomx::deallocDataset<randomx::LargePageAllocator>;
-				dataset->memory = (uint8_t*)randomx::LargePageAllocator::allocMemory(RANDOMX_DATASET_MAX_SIZE);
-			}
-			else {
-				dataset->dealloc = &randomx::deallocDataset<randomx::DefaultAllocator>;
-				dataset->memory = (uint8_t*)randomx::DefaultAllocator::allocMemory(RANDOMX_DATASET_MAX_SIZE);
-			}
-		}
-		catch (std::exception &ex) {
-			if (dataset != nullptr) {
-				randomx_release_dataset(dataset);
-				dataset = nullptr;
-			}
-		}
+		auto dataset = new randomx_dataset();
+		dataset->memory = memory;
 
 		return dataset;
 	}
@@ -345,8 +374,6 @@ extern "C" {
 	}
 
 	void randomx_release_dataset(randomx_dataset *dataset) {
-		assert(dataset != nullptr);
-		dataset->dealloc(dataset);
 		delete dataset;
 	}
 
@@ -404,6 +431,7 @@ extern "C" {
 			}
 
 			vm->setScratchpad(scratchpad);
+			vm->setFlags(flags);
 		}
 		catch (std::exception &ex) {
 			delete vm;
@@ -435,15 +463,33 @@ extern "C" {
 		assert(inputSize == 0 || input != nullptr);
 		assert(output != nullptr);
 		alignas(16) uint64_t tempHash[8];
-        rx_blake2b(tempHash, sizeof(tempHash), input, inputSize, nullptr, 0);
+		rx_blake2b(tempHash, sizeof(tempHash), input, inputSize, nullptr, 0);
 		machine->initScratchpad(&tempHash);
 		machine->resetRoundingMode();
 		for (uint32_t chain = 0; chain < RandomX_CurrentConfig.ProgramCount - 1; ++chain) {
 			machine->run(&tempHash);
-            rx_blake2b(tempHash, sizeof(tempHash), machine->getRegisterFile(), sizeof(randomx::RegisterFile), nullptr, 0);
+			rx_blake2b(tempHash, sizeof(tempHash), machine->getRegisterFile(), sizeof(randomx::RegisterFile), nullptr, 0);
 		}
 		machine->run(&tempHash);
 		machine->getFinalResult(output, RANDOMX_HASH_SIZE);
+	}
+
+	void randomx_calculate_hash_first(randomx_vm* machine, uint64_t (&tempHash)[8], const void* input, size_t inputSize) {
+		rx_blake2b(tempHash, sizeof(tempHash), input, inputSize, nullptr, 0);
+		machine->initScratchpad(tempHash);
+	}
+
+	void randomx_calculate_hash_next(randomx_vm* machine, uint64_t (&tempHash)[8], const void* nextInput, size_t nextInputSize, void* output) {
+		machine->resetRoundingMode();
+		for (uint32_t chain = 0; chain < RandomX_CurrentConfig.ProgramCount - 1; ++chain) {
+			machine->run(&tempHash);
+			rx_blake2b(tempHash, sizeof(tempHash), machine->getRegisterFile(), sizeof(randomx::RegisterFile), nullptr, 0);
+		}
+		machine->run(&tempHash);
+
+		// Finish current hash and fill the scratchpad for the next hash at the same time
+		rx_blake2b(tempHash, sizeof(tempHash), nextInput, nextInputSize, nullptr, 0);
+		machine->hashAndFill(output, RANDOMX_HASH_SIZE, tempHash);
 	}
 
 }

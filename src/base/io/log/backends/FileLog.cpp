@@ -24,17 +24,19 @@
  */
 
 
-#include <string.h>
-#include <uv.h>
-
-
 #include "base/io/log/backends/FileLog.h"
+#include "base/kernel/Env.h"
+
+
+#include <cassert>
+#include <cstring>
+#include <uv.h>
 
 
 xmrig::FileLog::FileLog(const char *fileName)
 {
     uv_fs_t req;
-    m_file = uv_fs_open(uv_default_loop(), &req, fileName, O_CREAT | O_APPEND | O_WRONLY, 0644, nullptr);
+    m_file = uv_fs_open(uv_default_loop(), &req, Env::expand(fileName), O_CREAT | O_APPEND | O_WRONLY, 0644, nullptr);
     uv_fs_req_cleanup(&req);
 }
 
@@ -45,13 +47,12 @@ void xmrig::FileLog::print(int, const char *line, size_t, size_t size, bool colo
         return;
     }
 
-#   ifdef _WIN32
-    uv_buf_t buf = uv_buf_init(strdup(line), static_cast<unsigned int>(size));
-#   else
-    uv_buf_t buf = uv_buf_init(strdup(line), size);
-#   endif
+    assert(strlen(line) == size);
 
-    uv_fs_t *req = new uv_fs_t;
+    uv_buf_t buf = uv_buf_init(new char[size], size);
+    memcpy(buf.base, line, size);
+
+    auto req = new uv_fs_t;
     req->data = buf.base;
 
     uv_fs_write(uv_default_loop(), req, m_file, &buf, 1, -1, FileLog::onWrite);
