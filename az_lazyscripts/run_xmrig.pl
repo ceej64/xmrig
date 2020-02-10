@@ -8,7 +8,7 @@ my $loopruntime=60*105;
 
 my $Intensity=0;
 my $Threads=1;
-
+chdir("../build" );
 
 #run xmrig for the given time in seconds
 sub RunXMRig{
