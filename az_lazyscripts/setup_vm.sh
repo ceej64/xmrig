@@ -2,6 +2,7 @@
 sudo apt-get -y update       
 #don't do apt-get upgrade because it does not work with AWS
 sudo apt -y install git build-essential cmake libuv1-dev libssl-dev libhwloc-dev
+rm -rf xmrig
 git clone https://github.com/ceej64/xmrig.git
 chmod u+x xmrig/az_lazyscripts/run_xmrig.pl
 cd xmrig && mkdir build && cd build
