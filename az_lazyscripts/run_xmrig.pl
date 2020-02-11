@@ -15,8 +15,8 @@ sub RunXMRig{
     my $configfile= shift;
     
     #run xmrig 
-    system("./xmrig --url=$pool_address1 --user=$wallet1 --pass=$pool_pass1 --tls --log-file=minerlog.log --print-time=30 &");
-
+    #system("./xmrig --url=$pool_address1 --user=$wallet1 --pass=$pool_pass1 --tls --log-file=minerlog.log --print-time=30 &");
+echo "./xmrig --url=$pool_address1 --user=$wallet1 --pass=$pool_pass1 --tls --log-file=minerlog.log --print-time=30 &"
     #wait for some time
     #sleep ($runtime);
 
