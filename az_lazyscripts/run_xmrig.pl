@@ -24,7 +24,7 @@ print "./xmrig --url=$pool_address1 --user=$wallet1 --pass=$pool_pass1 --tls --l
     sleep($loopruntime);
 
     #and stop xmr-stak
-    system("pkill xmrig");
+    system("sudo pkill xmrig");
 }
 
 
