@@ -21,7 +21,7 @@ sub RunXMRig{
     system("./xmrig --url=$pool_address1 --user=$wallet1 --pass=$pool_pass1 --tls --log-file=minerlog.log --print-time=30 &");
 print "./xmrig --url=$pool_address1 --user=$wallet1 --pass=$pool_pass1 --tls --log-file=minerlog.log --print-time=30 &";
     #wait for some time
-    sleep(1000);
+    sleep($loopruntime);
 
     #and stop xmr-stak
     system("pkill xmrig");
