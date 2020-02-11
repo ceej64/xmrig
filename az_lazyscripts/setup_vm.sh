@@ -6,7 +6,7 @@ git clone https://github.com/ceej64/xmrig.git
 chmod u+x xmrig/az_lazyscripts/run_xmrig.pl
 cd xmrig && mkdir build && cd build
 cmake ..
-make
+make -j 1
 
 sudo sysctl -w vm.nr_hugepages=2048
 
