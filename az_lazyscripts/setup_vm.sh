@@ -7,7 +7,7 @@ sudo sysctl -w vm.nr_hugepages=2048
 cd xmrig && mkdir build && cd build
 cmake ..
 make -j$(nproc)
-#chmod u+x az_lazyscripts/compile_and_config.sh
+chmod u+x ../az_lazyscripts/run_xmrig.pl
 #chmod u+x az_lazyscripts/run_xmr_stak.pl
 #chmod u+x az_lazyscripts/create_cpu_config.sh
 #chmod u+x az_lazyscripts/create_pool_config.sh
