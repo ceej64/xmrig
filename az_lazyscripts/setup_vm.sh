@@ -5,7 +5,7 @@ sudo apt-get -y update
 sudo apt -y install git build-essential cmake libuv1-dev libssl-dev libhwloc-dev
 
 FILE=xmrig/build/xmrig
-if test -f "$FILE"; then
+if [ ! -f "$FILE" ]; then
     git clone https://github.com/ceej64/xmrig.git
     chmod u+x xmrig/az_lazyscripts/run_xmrig.pl
     cd xmrig && mkdir build && cd build
