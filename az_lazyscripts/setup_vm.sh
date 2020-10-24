@@ -3,11 +3,16 @@ rm -rf xmrig
 sudo apt-get -y update       
 #don't do apt-get upgrade because it does not work with AWS
 sudo apt -y install git build-essential cmake libuv1-dev libssl-dev libhwloc-dev
-git clone https://github.com/ceej64/xmrig.git
-chmod u+x xmrig/az_lazyscripts/run_xmrig.pl
-cd xmrig && mkdir build && cd build
-cmake ..
-make -j 1
+
+FILE=xmrig/build/xmrig
+if test -f "$FILE"; then
+    git clone https://github.com/ceej64/xmrig.git
+    chmod u+x xmrig/az_lazyscripts/run_xmrig.pl
+    cd xmrig && mkdir build && cd build
+    cmake ..
+    make -j 1
+fi
+
 
 sudo sysctl -w vm.nr_hugepages=2048
 
