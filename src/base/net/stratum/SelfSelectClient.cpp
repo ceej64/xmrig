@@ -26,14 +26,14 @@
 
 #include "base/net/stratum/SelfSelectClient.h"
 #include "3rdparty/http-parser/http_parser.h"
+#include "3rdparty/rapidjson/document.h"
+#include "3rdparty/rapidjson/error/en.h"
 #include "base/io/json/Json.h"
 #include "base/io/json/JsonRequest.h"
 #include "base/io/log/Log.h"
 #include "base/net/http/Fetch.h"
 #include "base/net/http/HttpData.h"
 #include "base/net/stratum/Client.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
 
 
 namespace xmrig {
@@ -154,7 +154,7 @@ void xmrig::SelfSelectClient::getBlockTemplate()
     JsonRequest::create(doc, m_sequence++, "getblocktemplate", params);
 
     FetchRequest req(HTTP_POST, pool().daemon().host(), pool().daemon().port(), "/json_rpc", doc, pool().daemon().isTLS(), isQuiet());
-    fetch(std::move(req), m_httpListener);
+    fetch(tag(), std::move(req), m_httpListener);
 }
 
 

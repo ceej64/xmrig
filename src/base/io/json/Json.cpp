@@ -1,12 +1,6 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,11 +18,12 @@
 
 
 #include "base/io/json/Json.h"
-#include "rapidjson/document.h"
+#include "3rdparty/rapidjson/document.h"
 
 
 #include <cassert>
 #include <cmath>
+#include <istream>
 
 
 namespace xmrig {
@@ -119,6 +114,21 @@ const rapidjson::Value &xmrig::Json::getValue(const rapidjson::Value &obj, const
 }
 
 
+double xmrig::Json::getDouble(const rapidjson::Value &obj, const char *key, double defaultValue)
+{
+    if (isEmpty(obj)) {
+        return defaultValue;
+    }
+
+    auto i = obj.FindMember(key);
+    if (i != obj.MemberEnd() && (i->value.IsDouble() || i->value.IsLosslessDouble())) {
+        return i->value.GetDouble();
+    }
+
+    return defaultValue;
+}
+
+
 int xmrig::Json::getInt(const rapidjson::Value &obj, const char *key, int defaultValue)
 {
     if (isEmpty(obj)) {
@@ -146,6 +156,25 @@ int64_t xmrig::Json::getInt64(const rapidjson::Value &obj, const char *key, int6
     }
 
     return defaultValue;
+}
+
+
+xmrig::String xmrig::Json::getString(const rapidjson::Value &obj, const char *key, size_t maxSize)
+{
+    if (isEmpty(obj)) {
+        return {};
+    }
+
+    auto i = obj.FindMember(key);
+    if (i == obj.MemberEnd() || !i->value.IsString()) {
+        return {};
+    }
+
+    if (maxSize == 0 || i->value.GetStringLength() <= maxSize) {
+        return i->value.GetString();
+    }
+
+    return { i->value.GetString(), maxSize };
 }
 
 
@@ -189,6 +218,42 @@ rapidjson::Value xmrig::Json::normalize(double value, bool zero)
 
     return Value(floor(value * 100.0) / 100.0);
 }
+
+
+bool xmrig::Json::convertOffset(std::istream &ifs, size_t offset, size_t &line, size_t &pos, std::vector<std::string> &s)
+{
+    std::string prev_t;
+    std::string t;
+    line = 0;
+    pos = 0;
+    size_t k = 0;
+
+    while (!ifs.eof()) {
+        prev_t = t;
+        std::getline(ifs, t);
+        k += t.length() + 1;
+        ++line;
+
+        if (k > offset) {
+            pos = offset + t.length() + 1 - k + 1;
+
+            s.clear();
+            if (!prev_t.empty()) {
+                s.emplace_back(prev_t);
+            }
+            s.emplace_back(t);
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+xmrig::JsonReader::JsonReader() :
+    m_obj(kNullValue)
+{}
 
 
 bool xmrig::JsonReader::isEmpty() const

@@ -25,7 +25,7 @@
 
 
 #include "base/crypto/Algorithm.h"
-#include "rapidjson/document.h"
+#include "3rdparty/rapidjson/document.h"
 
 
 #include <cassert>
@@ -70,10 +70,6 @@ static AlgoName const algorithm_names[] = {
     { "cryptonight/rwz",           "cn/rwz",           Algorithm::CN_RWZ          },
     { "cryptonight/zls",           "cn/zls",           Algorithm::CN_ZLS          },
     { "cryptonight/double",        "cn/double",        Algorithm::CN_DOUBLE       },
-#   ifdef XMRIG_ALGO_CN_GPU
-    { "cryptonight/gpu",           "cn/gpu",           Algorithm::CN_GPU          },
-    { "cryptonight_gpu",           nullptr,            Algorithm::CN_GPU          },
-#   endif
 #   ifdef XMRIG_ALGO_CN_LITE
     { "cryptonight-lite/0",        "cn-lite/0",        Algorithm::CN_LITE_0       },
     { "cryptonight-lite/1",        "cn-lite/1",        Algorithm::CN_LITE_1       },
@@ -109,8 +105,6 @@ static AlgoName const algorithm_names[] = {
     { "RandomX",                   "rx",               Algorithm::RX_0            },
     { "randomx/wow",               "rx/wow",           Algorithm::RX_WOW          },
     { "RandomWOW",                 nullptr,            Algorithm::RX_WOW          },
-    { "randomx/loki",              "rx/loki",          Algorithm::RX_LOKI         },
-    { "RandomXL",                  nullptr,            Algorithm::RX_LOKI         },
     { "randomx/arq",               "rx/arq",           Algorithm::RX_ARQ          },
     { "RandomARQ",                 nullptr,            Algorithm::RX_ARQ          },
     { "randomx/sfx",               "rx/sfx",           Algorithm::RX_SFX          },
@@ -121,16 +115,30 @@ static AlgoName const algorithm_names[] = {
 #   ifdef XMRIG_ALGO_ARGON2
     { "argon2/chukwa",             nullptr,            Algorithm::AR2_CHUKWA      },
     { "chukwa",                    nullptr,            Algorithm::AR2_CHUKWA      },
+    { "argon2/chukwav2",           nullptr,            Algorithm::AR2_CHUKWA_V2   },
+    { "chukwav2",                  nullptr,            Algorithm::AR2_CHUKWA_V2   },
     { "argon2/wrkz",               nullptr,            Algorithm::AR2_WRKZ        },
 #   endif
 #   ifdef XMRIG_ALGO_ASTROBWT
     { "astrobwt",                  nullptr,            Algorithm::ASTROBWT_DERO   },
     { "astrobwt/dero",             nullptr,            Algorithm::ASTROBWT_DERO   },
 #   endif
+#   ifdef XMRIG_ALGO_KAWPOW
+    { "kawpow",                    nullptr,            Algorithm::KAWPOW_RVN      },
+    { "kawpow/rvn",                nullptr,            Algorithm::KAWPOW_RVN      },
+#   endif
+    { "cryptonight/ccx",           "cn/ccx",           Algorithm::CN_CCX          },
+    { "cryptonight/conceal",       "cn/conceal",       Algorithm::CN_CCX          },
 };
 
 
 } /* namespace xmrig */
+
+
+xmrig::Algorithm::Algorithm(const rapidjson::Value &value) :
+    m_id(parse(value.GetString()))
+{
+}
 
 
 rapidjson::Value xmrig::Algorithm::toJSON() const
@@ -141,12 +149,17 @@ rapidjson::Value xmrig::Algorithm::toJSON() const
 }
 
 
+rapidjson::Value xmrig::Algorithm::toJSON(rapidjson::Document &) const
+{
+    return toJSON();
+}
+
+
 size_t xmrig::Algorithm::l2() const
 {
 #   ifdef XMRIG_ALGO_RANDOMX
     switch (m_id) {
     case RX_0:
-    case RX_LOKI:
     case RX_SFX:
         return 0x40000;
 
@@ -194,7 +207,6 @@ size_t xmrig::Algorithm::l3() const
     if (f == RANDOM_X) {
         switch (m_id) {
         case RX_0:
-        case RX_LOKI:
         case RX_SFX:
             return oneMiB * 2;
 
@@ -217,6 +229,9 @@ size_t xmrig::Algorithm::l3() const
         case AR2_CHUKWA:
             return oneMiB / 2;
 
+        case AR2_CHUKWA_V2:
+            return oneMiB;
+
         case AR2_WRKZ:
             return oneMiB / 4;
 
@@ -231,6 +246,18 @@ size_t xmrig::Algorithm::l3() const
         switch (m_id) {
         case ASTROBWT_DERO:
             return oneMiB * 20;
+
+        default:
+            break;
+        }
+    }
+#   endif
+
+#   ifdef XMRIG_ALGO_KAWPOW
+    if (f == KAWPOW) {
+        switch (m_id) {
+        case KAWPOW_RVN:
+            return 32768;
 
         default:
             break;
@@ -262,12 +289,6 @@ uint32_t xmrig::Algorithm::maxIntensity() const
     }
 #   endif
 
-#   ifdef XMRIG_ALGO_CN_GPU
-    if (m_id == CN_GPU) {
-        return 1;
-    }
-#   endif
-
     return 5;
 }
 
@@ -286,9 +307,7 @@ xmrig::Algorithm::Family xmrig::Algorithm::family(Id id)
     case CN_RWZ:
     case CN_ZLS:
     case CN_DOUBLE:
-#   ifdef XMRIG_ALGO_CN_GPU
-    case CN_GPU:
-#   endif
+    case CN_CCX:
         return CN;
 
 #   ifdef XMRIG_ALGO_CN_LITE
@@ -313,7 +332,6 @@ xmrig::Algorithm::Family xmrig::Algorithm::family(Id id)
 #   ifdef XMRIG_ALGO_RANDOMX
     case RX_0:
     case RX_WOW:
-    case RX_LOKI:
     case RX_ARQ:
     case RX_SFX:
     case RX_KEVA:
@@ -322,6 +340,7 @@ xmrig::Algorithm::Family xmrig::Algorithm::family(Id id)
 
 #   ifdef XMRIG_ALGO_ARGON2
     case AR2_CHUKWA:
+    case AR2_CHUKWA_V2:
     case AR2_WRKZ:
         return ARGON2;
 #   endif
@@ -329,6 +348,11 @@ xmrig::Algorithm::Family xmrig::Algorithm::family(Id id)
 #   ifdef XMRIG_ALGO_ASTROBWT
     case ASTROBWT_DERO:
         return ASTROBWT;
+#   endif
+
+#   ifdef XMRIG_ALGO_KAWPOW
+    case KAWPOW_RVN:
+        return KAWPOW;
 #   endif
 
     default:

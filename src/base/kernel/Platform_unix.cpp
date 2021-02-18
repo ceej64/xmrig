@@ -1,11 +1,6 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -38,14 +33,11 @@
 #include <unistd.h>
 #include <uv.h>
 #include <thread>
+#include <fstream>
 
 
 #include "base/kernel/Platform.h"
 #include "version.h"
-
-#ifdef XMRIG_NVIDIA_PROJECT
-#   include "nvidia/cryptonight.h"
-#endif
 
 
 #ifdef __FreeBSD__
@@ -68,11 +60,6 @@ char *xmrig::Platform::createUserAgent()
     length += snprintf(buf + length, max - length, "arm) libuv/%s", uv_version_string());
 #   else
     length += snprintf(buf + length, max - length, "i686) libuv/%s", uv_version_string());
-#   endif
-
-#   ifdef XMRIG_NVIDIA_PROJECT
-    const int cudaVersion = cuda_get_runtime_version();
-    length += snprintf(buf + length, max - length, " CUDA/%d.%d", cudaVersion / 1000, cudaVersion % 100);
 #   endif
 
 #   ifdef __clang__
@@ -102,17 +89,6 @@ bool xmrig::Platform::setThreadAffinity(uint64_t cpu_id)
     return result;
 }
 #endif
-
-
-uint32_t xmrig::Platform::setTimerResolution(uint32_t resolution)
-{
-    return resolution;
-}
-
-
-void xmrig::Platform::restoreTimerResolution()
-{
-}
 
 
 void xmrig::Platform::setProcessPriority(int)
@@ -165,4 +141,20 @@ void xmrig::Platform::setThreadPriority(int priority)
         }
     }
 #   endif
+}
+
+
+bool xmrig::Platform::isOnBatteryPower()
+{
+    for (int i = 0; i <= 1; ++i) {
+        char buf[64];
+        snprintf(buf, 64, "/sys/class/power_supply/BAT%d/status", i);
+        std::ifstream f(buf);
+        if (f.is_open()) {
+            std::string status;
+            f >> status;
+            return (status == "Discharging");
+        }
+    }
+    return false;
 }

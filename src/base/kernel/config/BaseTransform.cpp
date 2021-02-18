@@ -151,7 +151,8 @@ void xmrig::BaseTransform::transform(rapidjson::Document &doc, int key, const ch
         }
         break;
 
-    case IConfig::UrlKey: /* --url */
+    case IConfig::UrlKey:    /* --url */
+    case IConfig::StressKey: /* --stress */
     {
         if (!doc.HasMember(Pools::kPools)) {
             doc.AddMember(rapidjson::StringRef(Pools::kPools), rapidjson::kArrayType, doc.GetAllocator());
@@ -162,7 +163,20 @@ void xmrig::BaseTransform::transform(rapidjson::Document &doc, int key, const ch
             array.PushBack(rapidjson::kObjectType, doc.GetAllocator());
         }
 
-        set(doc, array[array.Size() - 1], Pool::kUrl, arg);
+#       ifdef XMRIG_FEATURE_BENCHMARK
+        if (key != IConfig::UrlKey) {
+            set(doc, array[array.Size() - 1], Pool::kUrl,
+#           ifdef XMRIG_FEATURE_TLS
+                "stratum+ssl://randomx.xmrig.com:443"
+#           else
+                "randomx.xmrig.com:3333"
+#           endif
+            );
+        } else
+#       endif
+        {
+            set(doc, array[array.Size() - 1], Pool::kUrl, arg);
+        }
         break;
     }
 
@@ -204,6 +218,9 @@ void xmrig::BaseTransform::transform(rapidjson::Document &doc, int key, const ch
     case IConfig::UserAgentKey: /* --user-agent */
         return set(doc, BaseConfig::kUserAgent, arg);
 
+    case IConfig::TitleKey: /* --title */
+        return set(doc, BaseConfig::kTitle, arg);
+
 #   ifdef XMRIG_FEATURE_TLS
     case IConfig::TlsCertKey: /* --tls-cert */
         return set(doc, BaseConfig::kTls, TlsConfig::kCert, arg);
@@ -244,10 +261,12 @@ void xmrig::BaseTransform::transform(rapidjson::Document &doc, int key, const ch
     case IConfig::HttpEnabledKey: /* --http-enabled */
     case IConfig::DaemonKey:      /* --daemon */
     case IConfig::VerboseKey:     /* --verbose */
+    case IConfig::PauseOnBatteryKey: /* --pause-on-battery */
         return transformBoolean(doc, key, true);
 
     case IConfig::ColorKey:          /* --no-color */
     case IConfig::HttpRestrictedKey: /* --http-no-restricted */
+    case IConfig::NoTitleKey:        /* --no-title */
         return transformBoolean(doc, key, false);
 
     default:
@@ -297,6 +316,12 @@ void xmrig::BaseTransform::transformBoolean(rapidjson::Document &doc, int key, b
 
     case IConfig::VerboseKey: /* --verbose */
         return set(doc, BaseConfig::kVerbose, enable);
+
+    case IConfig::NoTitleKey: /* --no-title */
+        return set(doc, BaseConfig::kTitle, enable);
+
+    case IConfig::PauseOnBatteryKey: /* --pause-on-battery */
+        return set(doc, BaseConfig::kPauseOnBattery, enable);
 
     default:
         break;

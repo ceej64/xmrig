@@ -1,11 +1,6 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -29,18 +24,7 @@
 
 
 #include "base/kernel/Platform.h"
-#include "base/io/log/Log.h"
 #include "version.h"
-
-
-#ifdef XMRIG_NVIDIA_PROJECT
-#   include "nvidia/cryptonight.h"
-#endif
-
-
-#ifdef XMRIG_AMD_PROJECT
-static uint32_t timerResolution = 0;
-#endif
 
 
 static inline OSVERSIONINFOEX winOsVersion()
@@ -75,11 +59,6 @@ char *xmrig::Platform::createUserAgent()
     length += snprintf(buf + length, max - length, ") libuv/%s", uv_version_string());
 #   endif
 
-#   ifdef XMRIG_NVIDIA_PROJECT
-    const int cudaVersion = cuda_get_runtime_version();
-    length += snprintf(buf + length, max - length, " CUDA/%d.%d", cudaVersion / 1000, cudaVersion % 100);
-#   endif
-
 #   ifdef __GNUC__
     length += snprintf(buf + length, max - length, " gcc/%d.%d.%d", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #   elif _MSC_VER
@@ -93,43 +72,11 @@ char *xmrig::Platform::createUserAgent()
 #ifndef XMRIG_FEATURE_HWLOC
 bool xmrig::Platform::setThreadAffinity(uint64_t cpu_id)
 {
-    if (cpu_id >= 64) {
-        LOG_ERR("Unable to set affinity. Windows supports only affinity up to 63.");
-    }
-
     const bool result = (SetThreadAffinityMask(GetCurrentThread(), 1ULL << cpu_id) != 0);
     Sleep(1);
     return result;
 }
 #endif
-
-
-uint32_t xmrig::Platform::setTimerResolution(uint32_t resolution)
-{
-#   ifdef XMRIG_AMD_PROJECT
-    TIMECAPS tc;
-
-    if (timeGetDevCaps(&tc, sizeof(TIMECAPS)) != TIMERR_NOERROR) {
-        return 0;
-    }
-
-    timerResolution = std::min<uint32_t>(std::max<uint32_t>(tc.wPeriodMin, resolution), tc.wPeriodMax);
-
-    return timeBeginPeriod(timerResolution) == TIMERR_NOERROR ? timerResolution : 0;
-#   else
-    return resolution;
-#   endif
-}
-
-
-void xmrig::Platform::restoreTimerResolution()
-{
-#   ifdef XMRIG_AMD_PROJECT
-    if (timerResolution) {
-        timeEndPeriod(timerResolution);
-    }
-#   endif
-}
 
 
 void xmrig::Platform::setProcessPriority(int priority)
@@ -205,3 +152,12 @@ void xmrig::Platform::setThreadPriority(int priority)
     SetThreadPriority(GetCurrentThread(), prio);
 }
 
+
+bool xmrig::Platform::isOnBatteryPower()
+{
+    SYSTEM_POWER_STATUS st;
+    if (GetSystemPowerStatus(&st)) {
+        return (st.ACLineStatus == 0);
+    }
+    return false;
+}

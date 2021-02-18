@@ -60,10 +60,6 @@ size_t inline generate<Algorithm::CN>(Threads<CpuThreads> &threads, uint32_t lim
         ++count;
     }
 
-#   ifdef XMRIG_ALGO_CN_GPU
-    count += generate("cn/gpu", threads, Algorithm::CN_GPU, limit);
-#   endif
-
     return count;
 }
 
@@ -149,7 +145,7 @@ size_t inline generate<Algorithm::RANDOM_X>(Threads<CpuThreads> &threads, uint32
 template<>
 size_t inline generate<Algorithm::ARGON2>(Threads<CpuThreads> &threads, uint32_t limit)
 {
-    return generate("argon2", threads, Algorithm::AR2_CHUKWA, limit);
+    return generate("argon2", threads, Algorithm::AR2_CHUKWA_V2, limit);
 }
 #endif
 

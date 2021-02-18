@@ -43,22 +43,12 @@ function cn_r()
 }
 
 
-function cn_gpu()
-{
-    const cn_gpu = opencl_minify(addIncludes('cryptonight_gpu.cl', [ 'wolf-aes.cl', 'keccak.cl' ]));
-
-    // fs.writeFileSync('cryptonight_gpu_gen.cl', cn_gpu);
-    fs.writeFileSync('cryptonight_gpu_cl.h', text2h(cn_gpu, 'xmrig', 'cryptonight_gpu_cl'));
-}
-
-
 function rx()
 {
     let rx = addIncludes('randomx.cl', [
         '../cn/algorithm.cl',
         'randomx_constants_monero.h',
         'randomx_constants_wow.h',
-        'randomx_constants_loki.h',
         'randomx_constants_arqma.h',
         'randomx_constants_keva.h',
         'aes.cl',
@@ -85,11 +75,21 @@ function astrobwt()
 }
 
 
+function kawpow()
+{
+    const kawpow = opencl_minify(addIncludes('kawpow.cl', [ 'defs.h' ]));
+    const kawpow_dag = opencl_minify(addIncludes('kawpow_dag.cl', [ 'defs.h' ]));
+
+    // fs.writeFileSync('kawpow_gen.cl', kawpow);
+    fs.writeFileSync('kawpow_cl.h', text2h(kawpow, 'xmrig', 'kawpow_cl'));
+    fs.writeFileSync('kawpow_dag_cl.h', text2h(kawpow_dag, 'xmrig', 'kawpow_dag_cl'));
+}
+
+
 process.chdir(path.resolve('src/backend/opencl/cl/cn'));
 
 cn();
 cn_r();
-cn_gpu();
 
 process.chdir(cwd);
 process.chdir(path.resolve('src/backend/opencl/cl/rx'));
@@ -100,3 +100,8 @@ process.chdir(cwd);
 process.chdir(path.resolve('src/backend/opencl/cl/astrobwt'));
 
 astrobwt();
+
+process.chdir(cwd);
+process.chdir(path.resolve('src/backend/opencl/cl/kawpow'));
+
+kawpow();

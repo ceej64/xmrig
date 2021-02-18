@@ -33,6 +33,7 @@
 #include "base/io/log/backends/ConsoleLog.h"
 #include "base/io/log/backends/FileLog.h"
 #include "base/io/log/Log.h"
+#include "base/io/log/Tags.h"
 #include "base/io/Watcher.h"
 #include "base/kernel/interfaces/IBaseListener.h"
 #include "base/kernel/Platform.h"
@@ -40,6 +41,7 @@
 #include "base/net/tools/NetBuffer.h"
 #include "core/config/Config.h"
 #include "core/config/ConfigTransform.h"
+#include "version.h"
 
 
 #ifdef HAVE_SYSLOG_H
@@ -74,7 +76,12 @@ public:
     XMRIG_DISABLE_COPY_MOVE_DEFAULT(BasePrivate)
 
 
-    inline BasePrivate(Process *process) : config(load(process)) {}
+    inline BasePrivate(Process *process)
+    {
+        Log::init();
+
+        config = load(process);
+    }
 
 
     inline ~BasePrivate()
@@ -131,7 +138,16 @@ private:
         }
 
         chain.addFile(Process::location(Process::DataLocation, "config.json"));
-
+        if (read(chain, config)) {
+            return config.release();
+        }
+        
+        chain.addFile(Process::location(Process::HomeLocation,  "." APP_ID ".json"));
+        if (read(chain, config)) {
+            return config.release();
+        }
+        
+        chain.addFile(Process::location(Process::HomeLocation, ".config" XMRIG_DIR_SEPARATOR APP_ID ".json"));
         if (read(chain, config)) {
             return config.release();
         }
@@ -155,6 +171,7 @@ private:
 xmrig::Base::Base(Process *process)
     : d_ptr(new BasePrivate(process))
 {
+
 }
 
 
@@ -183,7 +200,7 @@ int xmrig::Base::init()
         Log::setBackground(true);
     }
     else {
-        Log::add(new ConsoleLog());
+        Log::add(new ConsoleLog(config()->title()));
     }
 
     if (config()->logFile()) {
@@ -285,7 +302,7 @@ void xmrig::Base::addListener(IBaseListener *listener)
 
 void xmrig::Base::onFileChanged(const String &fileName)
 {
-    LOG_WARN("\"%s\" was changed, reloading configuration", fileName.data());
+    LOG_WARN("%s " YELLOW("\"%s\" was changed, reloading configuration"), Tags::config(), fileName.data());
 
     JsonChain chain;
     chain.addFile(fileName);
@@ -293,7 +310,7 @@ void xmrig::Base::onFileChanged(const String &fileName)
     auto config = new Config();
 
     if (!config->read(chain, chain.fileName())) {
-        LOG_ERR("reloading failed");
+        LOG_ERR("%s " RED("reloading failed"), Tags::config());
 
         delete config;
         return;
